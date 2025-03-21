@@ -1,0 +1,173 @@
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>แปลงรูปภาพออนไลน์</title>
+  <!-- Vue 3 CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- Tailwind CSS CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <!-- DaisyUI CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@1.20.0/dist/full.css" rel="stylesheet">
+  <!-- HEIC2ANY CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@latest/dist/heic2any.min.js"></script>
+  <!-- Google Fonts: Kanit -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;700&display=swap">
+  <style>
+    body {
+      font-family: 'Kanit', sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-900">
+  <div id="app" class="min-h-screen flex flex-col items-center justify-center p-8 space-y-6">
+    <!-- Header -->
+    <header class="text-center mb-12">
+      <h1 class="text-4xl font-extrabold text-gray-800 mb-4">แปลงรูปภาพออนไลน์</h1>
+      <p class="text-lg text-gray-600">อัปโหลดรูปภาพและแปลงเป็นฟอร์แมตที่ต้องการ เช่น JPG, PNG, WebP</p>
+    </header>
+    
+    <!-- Image Upload Section -->
+    <section class="bg-white p-8 rounded-xl shadow-lg w-full max-w-lg text-center border border-gray-300 space-y-6">
+      <div>
+        <input type="file" @change="handleFileUpload" class="file-input file-input-bordered file-input-primary w-full max-w-lg mx-auto" accept="image/*">
+      </div>
+      
+      <div>
+        <select v-model="selectedFormat" class="select select-bordered select-primary w-full max-w-lg mx-auto">
+          <option value="image/jpeg">แปลงเป็น JPG</option>
+          <option value="image/png">แปลงเป็น PNG</option>
+          <option value="image/webp">แปลงเป็น WebP</option>
+          <option value="image/gif">แปลงเป็น GIF</option>
+          <option value="image/bmp">แปลงเป็น BMP</option>
+          <option value="image/tiff">แปลงเป็น TIFF</option>
+          <option value="image/svg+xml">แปลงเป็น SVG</option>
+        </select>
+      </div>
+      
+      <button @click="convertImage" :disabled="isProcessing || !file" class="btn btn-primary w-full max-w-lg" :class="{ 'btn-disabled': isProcessing }">แปลงรูปภาพ</button>
+      
+      <!-- Processing Indicator -->
+      <div v-if="isProcessing" class="mt-6">
+        <div class="alert alert-info shadow-lg">
+          <div class="flex items-center">
+            <svg class="w-6 h-6 mr-2 text-blue-500 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12a8 8 0 1116 0A8 8 0 014 12zm0 0a8 8 0 1016 0 8 8 0 00-16 0z"></path>
+            </svg>
+            <span>กำลังประมวลผล...</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Preview Section -->
+      <div v-if="preview" class="mt-8">
+        <h2 class="text-xl font-semibold mb-4">พรีวิว:</h2>
+      <p class="text-red-500"> *ให้กดแปลงรูปก่อนทุกครั้ง เมื่อเปลี่ยนประเภทการแปลงรูปภาพ* </p>
+        <img :src="preview" alt="พรีวิวรูปภาพ" class="max-w-full h-auto mb-4 rounded-lg shadow-md border border-gray-300">
+        <a :href="downloadLink" :download="downloadFilename" class="btn btn-secondary w-full max-w-lg">ดาวน์โหลดรูปภาพ</a>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          selectedFormat: 'image/jpeg',
+          preview: null,
+          downloadLink: null,
+          isProcessing: false,
+          file: null
+        };
+      },
+      computed: {
+        downloadFilename() {
+          let extension = '';
+          switch (this.selectedFormat) {
+            case 'image/jpeg': extension = 'jpg'; break;
+            case 'image/png': extension = 'png'; break;
+            case 'image/webp': extension = 'webp'; break;
+            case 'image/gif': extension = 'gif'; break;
+            case 'image/bmp': extension = 'bmp'; break;
+            case 'image/tiff': extension = 'tiff'; break;
+            case 'image/svg+xml': extension = 'svg'; break;
+            default: extension = 'png';
+          }
+          return `converted-image.${extension}`;
+        }
+      },
+      methods: {
+        async handleFileUpload(event) {
+          const file = event.target.files[0];
+
+          if (file && !file.type.startsWith('image/')) {
+            alert('กรุณาอัปโหลดเฉพาะไฟล์รูปภาพ (เช่น .jpg, .png, .heic)');
+            this.file = null;
+            this.preview = null;
+            this.downloadLink = null;
+            return;
+          }
+
+          this.file = file;
+          if (file) {
+            const isHEIC = file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic');
+            if (isHEIC) {
+              try {
+                const heicFile = await heic2any({ blob: file, toType: 'image/jpeg' });
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                  this.preview = e.target.result;
+                };
+                reader.readAsDataURL(heicFile);
+              } catch (error) {
+                alert('ไม่สามารถแปลงไฟล์ HEIC');
+                this.file = null;
+                this.preview = null;
+              }
+            } else {
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                this.preview = e.target.result;
+              };
+              reader.readAsDataURL(file);
+            }
+          }
+        },
+        convertImage() {
+          if (!this.file) {
+            alert('กรุณาอัปโหลดรูปภาพก่อนทำการแปลง');
+            return;
+          }
+
+          this.isProcessing = true;
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+
+            try {
+              this.downloadLink = canvas.toDataURL(this.selectedFormat);
+              this.preview = this.downloadLink;
+            } catch (e) {
+              alert('เกิดข้อผิดพลาดในการแปลงรูปภาพ');
+            }
+            this.isProcessing = false;
+          };
+
+          img.onerror = () => {
+            alert('ไม่สามารถโหลดรูปภาพเพื่อแปลงได้');
+            this.isProcessing = false;
+          };
+
+          img.src = this.preview;
+        }
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
